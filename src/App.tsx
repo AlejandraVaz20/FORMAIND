@@ -25,22 +25,19 @@ function MainAppContent() {
   const [erpRecords] = useState<ErpSampleRecord[]>(ERP_RECORDS);
   const [inspections, setInspections] = useState<InspectionRecord[]>(INITIAL_INSPECTIONS);
   
-  // User Profile state (personal data, role, plant, digital signature) — sourced from the
-  // authenticated session, so every record captured is traceable to a real logged-in user.
   const userProfile = currentProfile!;
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
 
-  // Wizard state
   const [selectedFormatIdForWizard, setSelectedFormatIdForWizard] = useState<string | undefined>(undefined);
   
-  // Modal states
+  // ESTADO NUEVO: Controla si estamos reanudando un borrador
+  const [recordToEdit, setRecordToEdit] = useState<any | undefined>(undefined);
+  
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [viewingRecord, setViewingRecord] = useState<InspectionRecord | null>(null);
 
-  // Notification for sync
   const [syncToast, setSyncToast] = useState<string | null>(null);
 
-  // Offline sync hook
   const { 
     isOnline, 
     pendingCount, 
@@ -52,7 +49,6 @@ function MainAppContent() {
     setTimeout(() => setSyncToast(null), 4000);
   });
 
-  // Initialize IndexedDB with initial inspections on startup
   useEffect(() => {
     initDB(INITIAL_INSPECTIONS).then((loaded) => {
       if (loaded && loaded.length > 0) {
@@ -65,7 +61,6 @@ function MainAppContent() {
     updateCurrentProfile(updated);
   };
 
-  // Global F2 keyboard shortcut for industrial barcode scanner
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
@@ -77,52 +72,49 @@ function MainAppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Handlers
   const handleStartFillFormat = (formatId: string) => {
     setSelectedFormatIdForWizard(formatId);
+    setRecordToEdit(undefined); // Limpiamos borrador previo
     setCurrentTab('llenar');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNewRecord = () => {
     setSelectedFormatIdForWizard(undefined);
+    setRecordToEdit(undefined); // Limpiamos borrador previo
     setCurrentTab('llenar');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBarcodeDetected = (record: ErpSampleRecord) => {
     let targetFormat = formats[0].id;
-    if (record.type === 'PO') targetFormat = 'for-alm-01'; // Recepción Proveedor
-    else if (record.type === 'LOTE') targetFormat = 'for-cal-04'; // Inspección Calidad
-    else if (record.type === 'OF') targetFormat = 'for-alm-08'; // Despacho Planta
-    else if (record.type === 'EMBARQUE') targetFormat = 'for-log-11'; // Salida Embarques
+    if (record.type === 'PO') targetFormat = 'for-alm-01'; 
+    else if (record.type === 'LOTE') targetFormat = 'for-cal-04'; 
+    else if (record.type === 'OF') targetFormat = 'for-alm-08'; 
+    else if (record.type === 'EMBARQUE') targetFormat = 'for-log-11'; 
 
     setSelectedFormatIdForWizard(targetFormat);
+    setRecordToEdit(undefined);
     setCurrentTab('llenar');
   };
 
-  const handleRecordCompleted = (newRecord: InspectionRecord) => {
-    setInspections(prev => [newRecord, ...prev]);
-    // Save to IndexedDB and enqueue in syncQueue if offline
-    saveInspection(newRecord, !isOnline).then(() => {
-      refreshPendingCount();
-    });
-  };
-
-  const handleViewTraceability = (record: InspectionRecord) => {
-    setCurrentTab('registros');
-    setViewingRecord(null);
+  // FUNCIÓN NUEVA: Enviar los datos del borrador al wizard y abrir la pestaña
+  const handleContinueEditing = (record: any) => {
+    setRecordToEdit(record);
+    setCurrentTab('llenar');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-slate-800 font-sans antialiased selection:bg-blue-100 selection:text-blue-900 transition-colors duration-150">
       
-      {/* Top Navbar */}
       <Navbar
         currentTab={currentTab}
         onSelectTab={(tab) => {
-          if (tab !== 'llenar') setSelectedFormatIdForWizard(undefined);
+          if (tab !== 'llenar') {
+            setSelectedFormatIdForWizard(undefined);
+            setRecordToEdit(undefined);
+          }
           setCurrentTab(tab);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
@@ -138,7 +130,6 @@ function MainAppContent() {
         onLogout={logout}
       />
 
-      {/* Sync Toast Notification */}
       {syncToast && (
         <div className="fixed top-20 right-6 z-50 bg-emerald-700 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2 animate-in slide-in-from-top-3 duration-200 border border-emerald-500">
           <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
@@ -146,7 +137,6 @@ function MainAppContent() {
         </div>
       )}
 
-      {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         
         {currentTab === 'inicio' && (
@@ -156,7 +146,7 @@ function MainAppContent() {
             onStartFillFormat={handleStartFillFormat}
             onOpenCatalog={() => setCurrentTab('formatos')}
             onOpenAllHistory={() => setCurrentTab('registros')}
-            onViewRecord={(rec) => setViewingRecord(rec)}
+            onViewRecord={(rec: any) => setViewingRecord(rec)}
             onOpenScanner={() => setIsScannerOpen(true)}
             onNewRecord={handleNewRecord}
           />
@@ -164,16 +154,8 @@ function MainAppContent() {
 
         {currentTab === 'llenar' && (
           <FillFormatWizard
-            formats={formats}
-            erpRecords={erpRecords}
-            initialFormatId={selectedFormatIdForWizard}
-            userProfile={userProfile}
-            onCancel={() => {
-              setSelectedFormatIdForWizard(undefined);
-              setCurrentTab('inicio');
-            }}
-            onComplete={handleRecordCompleted}
-            onViewTraceability={handleViewTraceability}
+            setRoute={setCurrentTab}
+            draftData={recordToEdit}
           />
         )}
 
@@ -186,9 +168,8 @@ function MainAppContent() {
 
         {currentTab === 'registros' && (
           <RecordsView
-            records={inspections}
-            onViewRecord={(rec) => setViewingRecord(rec)}
-            onNewRecord={handleNewRecord}
+            onContinueEditing={handleContinueEditing}
+            onViewRecord={(rec: any) => setViewingRecord(rec)}
           />
         )}
 
@@ -198,24 +179,20 @@ function MainAppContent() {
 
       </main>
 
-      {/* Industrial Footer */}
       <Footer />
 
-      {/* Barcode Scanner Modal */}
       <ScannerModal
         isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
         erpRecords={erpRecords}
+        onClose={() => setIsScannerOpen(false)}
         onBarcodeDetected={handleBarcodeDetected}
       />
 
-      {/* Record Detail Modal */}
       <RecordDetailModal
         record={viewingRecord}
         onClose={() => setViewingRecord(null)}
       />
 
-      {/* User Profile & Digital Signature Modal */}
       <UserProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
@@ -230,8 +207,6 @@ function MainAppContent() {
 function AuthGate() {
   const { session, currentProfile, isAuthReady } = useAuth();
 
-  // Wait for the session check (and demo-account seeding) to finish before deciding
-  // whether to show the login screen or the app, to avoid a login screen "flash".
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">

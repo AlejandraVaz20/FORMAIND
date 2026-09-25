@@ -32,6 +32,29 @@ export function FillFormatWizard({ setRoute, draftData }: FillFormatWizardProps)
     evidencias: (draftData?.evidencias || []) as EvidenciaItem[], 
     estado: 'completado'
   });
+
+  // Este useEffect asegura que si entras al componente con un borrador distinto, 
+  // los datos se carguen inmediatamente en el formulario.
+  useEffect(() => {
+    if (draftData) {
+      setFormatType(draftData.tipo || 'recepcion');
+      setFormData({
+        id: draftData.id || '',
+        proveedor: draftData.proveedor || '',
+        ordenCompra: draftData.ordenCompra || '',
+        fecha: draftData.fecha || new Date().toISOString().split('T')[0],
+        transportista: draftData.transportista || '',
+        numeroContenedor: draftData.numeroContenedor || '', 
+        codigoMaterial: draftData.codigoMaterial || '',
+        cantidadEsperada: draftData.cantidadEsperada || '',
+        cantidadRecibida: draftData.cantidadRecibida || '',
+        observaciones: draftData.observaciones || '',
+        caracteristicasEvaluadas: draftData.caracteristicasEvaluadas || '',
+        evidencias: (draftData.evidencias || []) as EvidenciaItem[], 
+        estado: draftData.estado || 'borrador'
+      });
+    }
+  }, [draftData]);
   
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
@@ -148,7 +171,7 @@ export function FillFormatWizard({ setRoute, draftData }: FillFormatWizardProps)
         fechaCompletado: new Date().toISOString()
       };
       
-      // Guardamos en la base de datos local como completado (puede adaptarse según tu función de registros)
+      // Guardamos en la base de datos local como completado
       await saveDraftToDB(finalRecord);
 
       setShowPreview(false);
