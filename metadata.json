@@ -1,0 +1,6 @@
+{
+  "name": "FORMAIND - Digitalización de Formatos Industriales",
+  "description": "Sistema industrial para digitalizar formatos en papel con autocompletado ERP, captura guiada por pasos y trazabilidad.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
